@@ -8,7 +8,6 @@ class Spin
     unsigned int N; //Dimension of the lattice
     int energy = 0;
     std::vector<int> lattice;
- 
     //private methods access only by configuration update
     int close_neighbord_energy(const unsigned int &row, const unsigned int &col);
     void flip(const unsigned int &row, unsigned const int &col);
@@ -26,7 +25,7 @@ class Spin
     int get_N();
     double get_energy();
     int get_magnetization();
-    Spin configuration_update(const double &beta, const float &J, const float &H, const unsigned int &max_iter); 
+    Spin configuration_update(const double &beta, const float &J, const unsigned int &max_iter); 
 };
 #endif
 
