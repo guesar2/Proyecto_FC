@@ -74,20 +74,26 @@ void Spin::flip(const unsigned int &row, const unsigned int &col){
   lattice[ (row*N) + col ] = (lattice[ (row*N) + col ] > 0) ? -1 : 1;
 }
 
-Spin Spin::configuration_update(const double &beta, const float &J, const unsigned int &max_iter){
+Spin Spin::configuration_update(const double &beta, const float &J, const float &H, const unsigned int &max_iter){
   int dE = 0;
+  int dM = 0;
   
   std::random_device rd;
   std::mt19937 rng(rd());
   //std::uniform_int_distribution<unsigned int> rndint(0, N - 1);
   std::uniform_real_distribution<double> rndb(0, 1);
 
-  std::unordered_map<int, double> probability = {
-    {-8, exp(beta * -8*J)},
-    {-4, exp(beta * -4*J)},
-    {0, exp(beta * 0*J)},
-    {4, exp(beta * 4*J)},
-    {8, exp(beta * 8*J)},
+  std::unordered_map<int, double> probE = {
+    {-8, exp(-8 * beta * J)},
+    {-4, exp(-4 * beta * J)},
+    {0, 1},
+    {4, exp(4 * beta * J)},
+    {8, exp(8 * beta * J)},
+  };
+
+  std::unordered_map<int, double> probM{
+    {-2, exp(-2*beta *H)},
+    {2, exp(2*beta*H)},
   };
 
   #pragma omp parallel reduction(+ : energy) private(dE, dH)
@@ -100,8 +106,8 @@ Spin Spin::configuration_update(const double &beta, const float &J, const unsign
       lattice_copy.flip(row,col);
 
       dE = lattice_copy.close_neighbord_energy(row, col);
-      //dH = -H*(lattice_copy.get_magnetization() - get_magnetization()) - J*dE;
-      if (rndb(rng) < probability[dE]){
+      dM = 2*lattice_copy.lattice[ (row*N) + col ];
+      if (rndb(rng) < probM[dM]*probE[dE]){
         *this = lattice_copy;
         #pragma omp atomic 
         energy += dE;
