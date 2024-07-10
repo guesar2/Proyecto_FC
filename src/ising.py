@@ -1,81 +1,68 @@
 import numpy as np
-import scipy
 
+def simulate_Ising(Ti, Tf, steps, size, mcsteps, init_state=1, J=1, kb=1):
 
-class IsingModel:
-    def __init__(self, size, kb, J, H, n_mcsteps, n_eqsteps=100000):
-        self.size = size
-        self.lattice = np.ones((size, size))
-        self.kb = kb
-        self.J = J
-        self.H = H
-        self.n_mcsteps = n_mcsteps
-        self.n_eqsteps = n_eqsteps
-
-    def calculate_energy_change(self, i, j):
-        spin = self.lattice[i, j]
-        neighbors_sum = (
-            self.lattice[(i + 1) % self.size, j]
-            + self.lattice[i, (j + 1) % self.size]
-            + self.lattice[(i - 1) % self.size, j]
-            + self.lattice[i, (j - 1) % self.size]
+    def calculate_energy():
+        energies = (
+            np.roll(spins, 1, axis=1)
+            + np.roll(spins, -1, axis=1)
+            + np.roll(spins, 1, axis=0)
+            + np.roll(spins, -1, axis=0)
         )
-        dE = -2 * self.H * spin + 2 * self.J * spin * neighbors_sum
+        return energies.sum()
+
+    def calculate_dE(i, j):
+        dE = (
+            2 * J
+            * spins[i, j]
+            * (
+                spins[(i + 1) % size, j]
+                + spins[(i - 1) % size, j]
+                + spins[i, (j + 1) % size]
+                + spins[i, (j - 1) % size]
+            )
+        )
+
         return dE
+    
 
-    def update(self, T):
-        i, j = np.random.randint(self.size, size=2)
-        dE = self.calculate_energy_change(i, j)
+    if init_state == 0:
+        spins = np.random.choice([-1, 1], size=(size, size))
+    elif init_state == 1:
+        spins = np.ones((size, size))
+    elif init_state == -1:
+        spins = np.full((size, size), -1)
+    else:
+        raise ValueError("Invalid init_state value. Use 0 for random, 1 for all up, or -1 for all down.")
 
-        if np.random.rand() < np.exp(dE / (self.kb * T)):
-            dM = -2 * self.lattice[i, j]
-            self.lattice[i, j] *= -1
-            return dE, dM
-        else:
-            return 0, 0
+        
+    E = calculate_energy()
+    M = np.sum(spins)
+    temperatures = np.linspace(Ti, Tf, steps)
+    energies = np.zeros((steps, mcsteps + 1))
+    magnetizations = np.zeros((steps, mcsteps + 1))
+    
+    rand_pos = np.random.randint(size, size=((steps, mcsteps, 2)))
+    rands = np.log(np.random.uniform(size=(steps, mcsteps)))
+    
+    for k in range(steps):
+        energies[k, 0] = E
+        magnetizations[k, 0] = M
 
-    def calculate_energy(self):
-        kernel = scipy.ndimage.generate_binary_structure(2, 1)
-        kernel[1][1] = False
-        E_0 = self.lattice * scipy.ndimage.convolve(
-            self.lattice, kernel, mode="constant"
-        )
+        for l in range(mcsteps):
+            i, j = rand_pos[k, l]
+            dE = calculate_dE(i, j)
 
-        return E_0.sum()
-
-    def calculate_magnetization(self):
-        return np.sum(self.lattice)
-
-    def thermalize(self, T):
-        energies = np.zeros(self.n_eqsteps)
-        magnetizations = np.zeros(self.n_eqsteps)
-        energies[0] = self.calculate_energy()
-        magnetizations[0] = self.calculate_magnetization()
-
-        for i in range(1, self.n_eqsteps):
-            dE, dM = self.update(T)
-            energies[i] = energies[i - 1] + dE
-            magnetizations[i] = magnetizations[i - 1] + dM
-
-        return energies[-1], magnetizations[-1]
-
-    def run_mc(self, Ti, Tf):
-        temperatures = np.linspace(Ti, Tf, self.n_mcsteps)
-        temperatures = np.concatenate((temperatures, temperatures[-2::-1]))
-        energies = np.zeros(2 * self.n_mcsteps - 1)
-        magnetizations = np.zeros(2 * self.n_mcsteps - 1)
-
-        for i in range(2 * self.n_mcsteps - 1):
-            if i < self.n_mcsteps:
-                energies[i], magnetizations[i] = self.thermalize(temperatures[i])
-            else:
-                energies[i], magnetizations[i] = self.thermalize(
-                    temperatures[2 * self.n_mcsteps - i - 1]
-                )
-
-        return temperatures, energies, magnetizations
+            if rands[k, l] < - dE / (kb * temperatures[k]):
+                spins[i, j] *= -1
+                M += 2 * spins[i, j]
+                E += dE
+                
+            energies[k, l + 1] = E
+            magnetizations[k, l + 1] = M
 
 
-if __name__ == "__main__":
-    model = IsingModel(size=5, kb=1, J=1, H=0, n_mcsteps=10)
-    model.run_mc(.15, 10)
+    return energies, magnetizations, temperatures
+
+
+
