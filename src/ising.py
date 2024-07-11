@@ -3,13 +3,13 @@ import numpy as np
 def simulate_Ising(Ti, Tf, steps, size, mcsteps, init_state=1, J=1, kb=1):
 
     def calculate_energy():
-        energies = (
+        neighbors_sum = (
             np.roll(spins, 1, axis=1)
             + np.roll(spins, -1, axis=1)
             + np.roll(spins, 1, axis=0)
             + np.roll(spins, -1, axis=0)
         )
-        return energies.sum()
+        return -J * neighbors_sum.sum()
 
     def calculate_dE(i, j):
         dE = (
