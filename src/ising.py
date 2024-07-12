@@ -1,68 +1,72 @@
 import numpy as np
-
-def simulate_Ising(Ti, Tf, steps, size, mcsteps, init_state=1, J=1, kb=1):
-
-    def calculate_energy():
+                     
+class Spins:
+    def __init__(self, init_state, size):
+            if init_state == 0:
+                self.lattice = np.random.choice([-1, 1], size=(size, size))
+            elif init_state == -1:
+                self.lattice = np.full((size, size), -1)
+            else:
+                self.lattice = np.ones((size, size))
+            self.size = size
+                
+    def calculate_energy(self):
         neighbors_sum = (
-            np.roll(spins, 1, axis=1)
-            + np.roll(spins, -1, axis=1)
-            + np.roll(spins, 1, axis=0)
-            + np.roll(spins, -1, axis=0)
+            np.roll(self.lattice, 1, axis=1)
+            + np.roll(self.lattice, -1, axis=1)
+            + np.roll(self.lattice, 1, axis=0)
+            + np.roll(self.lattice, -1, axis=0)
         )
-        return -J * neighbors_sum.sum()
-
-    def calculate_dE(i, j):
+        return -1 * neighbors_sum.sum()
+    
+    def calculate_magnetization(self):
+        return np.sum(self.lattice)
+    
+    def update(self, i, j, T, rand):
         dE = (
-            2 * J
-            * spins[i, j]
-            * (
-                spins[(i + 1) % size, j]
-                + spins[(i - 1) % size, j]
-                + spins[i, (j + 1) % size]
-                + spins[i, (j - 1) % size]
-            )
+        2 
+        * self.lattice[i, j]
+        * (
+            self.lattice[(i + 1) % self.size, j]
+            + self.lattice[(i - 1) % self.size, j]
+            + self.lattice[i, (j + 1) % self.size]
+            + self.lattice[i, (j - 1) % self.size]
         )
-
-        return dE
-    
-
-    if init_state == 0:
-        spins = np.random.choice([-1, 1], size=(size, size))
-    elif init_state == 1:
-        spins = np.ones((size, size))
-    elif init_state == -1:
-        spins = np.full((size, size), -1)
-    else:
-        raise ValueError("Invalid init_state value. Use 0 for random, 1 for all up, or -1 for all down.")
-
+        )
+        if rand < - dE / (T):
+            self.lattice[i, j] *= -1
+            dM = 2 * self.lattice[i, j]
+            return dE, dM
         
-    E = calculate_energy()
-    M = np.sum(spins)
-    temperatures = np.linspace(Ti, Tf, steps)
-    energies = np.zeros((steps, mcsteps + 1))
-    magnetizations = np.zeros((steps, mcsteps + 1))
+        return 0, 0
+
+
+def simulate_Ising(Ti, Tf, steps, size, mcsteps, thermsteps, init_state=1, J=1, kb=1):
+
+    spins = Spins(init_state, size)        
+    E = spins.calculate_energy()
+    M = spins.calculate_magnetization()
     
-    rand_pos = np.random.randint(size, size=((steps, mcsteps, 2)))
-    rands = np.log(np.random.uniform(size=(steps, mcsteps)))
+    temperatures = np.linspace(Ti, Tf, steps)
+    energies = np.zeros((steps, mcsteps))
+    magnetizations = np.zeros((steps, mcsteps))
+    
+    rand_pos = np.random.randint(size, size=((steps, mcsteps + thermsteps, 2)))
+    rands = np.log(np.random.uniform(size=(steps, mcsteps + thermsteps)))
     
     for k in range(steps):
-        energies[k, 0] = E
-        magnetizations[k, 0] = M
 
-        for l in range(mcsteps):
+        for l in range(mcsteps + thermsteps):
             i, j = rand_pos[k, l]
-            dE = calculate_dE(i, j)
 
-            if rands[k, l] < - dE / (kb * temperatures[k]):
-                spins[i, j] *= -1
-                M += 2 * spins[i, j]
-                E += dE
-                
-            energies[k, l + 1] = E
-            magnetizations[k, l + 1] = M
+            dE, dM = spins.update(i, j, temperatures[k], rands[k, l])
+            E += dE
+            M += dM
+            
+            if l >= thermsteps:
+                energies[k, l-thermsteps] = E
+                magnetizations[k, l-thermsteps] = M  
 
 
     return energies, magnetizations, temperatures
-
-
 
